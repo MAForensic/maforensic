@@ -1,0 +1,732 @@
+schema_version: capsule-v1
+
+capsule_defaults: &profile0_defaults
+  version: 1.0.0
+  origin_profile: profile0
+  status: active
+  maturity: stable
+  capsule_type: primitive_capsule
+  underlying_dependencies: []
+  failure_semantics: {}
+  provenance_policy:
+    policy_ref: profile0-existing
+  runtime_limits:
+    policy_ref: existing_tool_definition
+  evolution:
+    verification_state: accepted
+    parent_capsules: []
+    records: []
+  composition:
+    enabled: false
+
+capsules:
+  - <<: *profile0_defaults
+    capsule_id: p0.source.probe
+    tool_name: probe_source
+    name: Probe evidence source
+    capability_layer: primitive
+    short_description: Check active evidence-source reachability and generic dependency availability.
+    executor_ref: existing_tool_registry:probe_source
+    consumes: [{port: source_context, type: active_source_context, required: true}]
+    produces: [{port: probe, type: source_probe}]
+    applicable_to: [configured_evidence_source]
+    not_applicable_to: [unconfigured_source]
+    failure_modes: {reason_codes: [generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.image.list_partitions
+    tool_name: list_partitions
+    name: List image partitions
+    capability_layer: primitive
+    short_description: List structured partitions from the active disk image.
+    executor_ref: existing_tool_registry:list_partitions
+    consumes: [{port: image, type: active_image_context, required: true}]
+    produces: [{port: partitions, type: partition_descriptor}]
+    applicable_to: [disk_image]
+    not_applicable_to: [directory_tree, ordinary_file]
+    underlying_dependencies: [mmls]
+    failure_modes: {reason_codes: [dependency_missing, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.image.select_partition
+    tool_name: select_partition
+    name: Select image partition
+    capability_layer: primitive
+    short_description: Activate a stable partition ID with normalized sector and byte offsets.
+    executor_ref: existing_tool_registry:select_partition
+    consumes: [{port: partition, type: partition_descriptor, required: true}]
+    produces: [{port: partition_context, type: active_partition_context}]
+    applicable_to: [partitioned_disk_image]
+    not_applicable_to: [directory_tree, ordinary_file]
+    failure_modes: {reason_codes: [invalid_tool_arguments, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.filesystem.inspect
+    tool_name: filesystem_info
+    name: Inspect filesystem
+    capability_layer: primitive
+    short_description: Read generic filesystem metadata for the active source or partition.
+    executor_ref: existing_tool_registry:filesystem_info
+    consumes: [{port: context, type: filesystem_context, required: true}]
+    produces: [{port: metadata, type: filesystem_metadata}]
+    applicable_to: [supported_filesystem]
+    not_applicable_to: [unrecognized_filesystem]
+    underlying_dependencies: [fsstat]
+    failure_modes: {reason_codes: [dependency_missing, generic_failure], output_conditions: [tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.filesystem.list_directory
+    tool_name: list_directory
+    name: List directory
+    capability_layer: primitive
+    short_description: Enumerate entries from an evidence tree path or image inode.
+    executor_ref: existing_tool_registry:list_directory
+    consumes: [{port: location, type: directory_locator, required: false}]
+    produces: [{port: entries, type: file_entry}]
+    applicable_to: [directory_tree, supported_image_filesystem]
+    not_applicable_to: [unrecognized_filesystem]
+    underlying_dependencies: [fls]
+    failure_modes: {reason_codes: [unreadable_file, dependency_missing, generic_failure], output_conditions: [empty, tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.image.extract_inode_file
+    tool_name: extract_image_file
+    name: Extract image file by inode
+    capability_layer: primitive
+    short_description: Materialize one image member selected by inode into the run directory.
+    executor_ref: existing_tool_registry:extract_image_file
+    consumes: [{port: inode, type: inode_locator, required: true}]
+    produces: [{port: file, type: host_file}]
+    applicable_to: [supported_image_filesystem]
+    not_applicable_to: [directory_tree, missing_inode]
+    underlying_dependencies: [icat]
+    failure_modes: {reason_codes: [unreadable_file, dependency_missing, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.file.export
+    tool_name: export_file
+    name: Export evidence file
+    capability_layer: primitive
+    short_description: Copy one bounded tree-evidence file into the run directory.
+    executor_ref: existing_tool_registry:export_file
+    consumes: [{port: file, type: tree_file, required: true}]
+    produces: [{port: exported_file, type: host_file}]
+    applicable_to: [readable_tree_file]
+    not_applicable_to: [image_internal_path, oversized_file]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.index.build
+    tool_name: build_file_index
+    name: Build file index
+    capability_layer: primitive
+    short_description: Build or reuse a structured index for the active evidence source and partition.
+    executor_ref: existing_tool_registry:build_file_index
+    consumes: [{port: source_context, type: active_source_context, required: true}]
+    produces: [{port: index_state, type: file_index_state}]
+    applicable_to: [directory_tree, supported_image_filesystem]
+    not_applicable_to: [unavailable_source, resource_limit_exceeded]
+    underlying_dependencies: [fls]
+    failure_modes: {reason_codes: [dependency_missing, generic_failure], output_conditions: [tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.index.query
+    tool_name: query_file_index
+    name: Query file index
+    capability_layer: primitive
+    short_description: Query an existing file index by generic metadata and time filters.
+    executor_ref: existing_tool_registry:query_file_index
+    consumes:
+      - {port: index_state, type: file_index_state, required: true}
+      - {port: query, type: file_index_query, required: true}
+    produces: [{port: file_locator, type: file_locator}]
+    applicable_to: [indexed_evidence_source]
+    not_applicable_to: [unindexed_evidence_source]
+    failure_modes: {reason_codes: [tool_repeated_failure, generic_failure], output_conditions: [empty, tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.indexed_file.get_metadata
+    tool_name: get_indexed_file_metadata
+    name: Get indexed file metadata
+    capability_layer: primitive
+    short_description: Return metadata for a stable source ID and file ID locator.
+    executor_ref: existing_tool_registry:get_indexed_file_metadata
+    consumes: [{port: file_locator, type: file_locator, required: true}]
+    produces: [{port: metadata, type: indexed_file_metadata}]
+    applicable_to: [indexed_file_locator]
+    not_applicable_to: [host_path_without_file_id]
+    failure_modes: {reason_codes: [generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.indexed_file.export
+    tool_name: export_indexed_file
+    name: Export indexed file
+    capability_layer: primitive
+    short_description: Materialize one bounded indexed evidence member into a host file.
+    executor_ref: existing_tool_registry:export_indexed_file
+    consumes: [{port: file_locator, type: file_locator, required: true}]
+    produces: [{port: file, type: host_file}]
+    applicable_to: [indexed_file_locator]
+    not_applicable_to: [unknown_file_id, oversized_file]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.indexed_file.read_text
+    tool_name: read_indexed_text
+    name: Read indexed text
+    capability_layer: primitive
+    short_description: Read bounded decoded text from an indexed evidence member.
+    executor_ref: existing_tool_registry:read_indexed_text
+    consumes: [{port: file_locator, type: file_locator, required: true}]
+    produces: [{port: text, type: text_slice}]
+    applicable_to: [indexed_text_file]
+    not_applicable_to: [unknown_file_id, oversized_range]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.indexed_file.read_binary
+    tool_name: read_indexed_binary_range
+    name: Read indexed binary range
+    capability_layer: primitive
+    short_description: Read a bounded indexed-member range as hexadecimal and ASCII.
+    executor_ref: existing_tool_registry:read_indexed_binary_range
+    consumes: [{port: file_locator, type: file_locator, required: true}]
+    produces: [{port: binary, type: binary_slice}]
+    applicable_to: [indexed_regular_file]
+    not_applicable_to: [unknown_file_id, oversized_range]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.indexed_file.search
+    tool_name: search_indexed_file
+    name: Search indexed file
+    capability_layer: primitive
+    short_description: Search a bounded indexed member and return matching contexts.
+    executor_ref: existing_tool_registry:search_indexed_file
+    consumes:
+      - {port: file_locator, type: file_locator, required: true}
+      - {port: query, type: search_query, required: true}
+    produces: [{port: hits, type: search_hit}]
+    applicable_to: [indexed_regular_file]
+    not_applicable_to: [unknown_file_id]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [empty, search_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.file.read_text
+    tool_name: read_text
+    name: Read text file
+    capability_layer: primitive
+    short_description: Read a bounded host-file text range with generic encoding detection.
+    executor_ref: existing_tool_registry:read_text
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: text, type: text_slice}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.file.read_binary
+    tool_name: read_binary_range
+    name: Read binary range
+    capability_layer: primitive
+    short_description: Read a bounded host-file range as hexadecimal and ASCII.
+    executor_ref: existing_tool_registry:read_binary_range
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: binary, type: binary_slice}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.file.compute_hash
+    tool_name: compute_hash
+    name: Compute file hash
+    capability_layer: primitive
+    short_description: Compute selected standard cryptographic hashes for a host file.
+    executor_ref: existing_tool_registry:compute_hash
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: hashes, type: file_hash}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.file.identify_type
+    tool_name: identify_file_type
+    name: Identify file type
+    capability_layer: primitive
+    short_description: Compare extension-derived MIME information with generic file signatures.
+    executor_ref: existing_tool_registry:identify_file_type
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: type_observation, type: file_type_observation}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    underlying_dependencies: [file]
+    failure_modes: {reason_codes: [unreadable_file, dependency_missing, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.text.detect_encoding
+    tool_name: detect_text_encoding
+    name: Detect text encoding
+    capability_layer: primitive
+    short_description: Detect a basic text encoding from a bounded host-file sample.
+    executor_ref: existing_tool_registry:detect_text_encoding
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: encoding, type: encoding_observation}]
+    applicable_to: [text_like_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.binary.extract_strings
+    tool_name: extract_file_strings
+    name: Extract file strings
+    capability_layer: primitive
+    short_description: Extract bounded printable ASCII and UTF-16LE strings with offsets.
+    executor_ref: existing_tool_registry:extract_file_strings
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: strings, type: offset_string}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [empty, tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.binary.search_strings
+    tool_name: search_file_strings
+    name: Search file strings
+    capability_layer: primitive
+    short_description: Search bounded printable ASCII and UTF-16LE strings with offsets.
+    executor_ref: existing_tool_registry:search_file_strings
+    consumes:
+      - {port: file, type: host_file, required: true}
+      - {port: query, type: search_query, required: true}
+    produces: [{port: hits, type: offset_search_hit}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [empty, search_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.file.search
+    tool_name: search_file
+    name: Search file
+    capability_layer: primitive
+    short_description: Search one bounded host file for text or a regular expression.
+    executor_ref: existing_tool_registry:search_file
+    consumes:
+      - {port: file, type: host_file, required: true}
+      - {port: query, type: search_query, required: true}
+    produces: [{port: hits, type: search_hit}]
+    applicable_to: [readable_host_file]
+    not_applicable_to: [image_internal_path, directory]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [empty, search_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.directory.search_content
+    tool_name: search_files_content
+    name: Search directory content
+    capability_layer: primitive
+    short_description: Search bounded readable files below a host directory.
+    executor_ref: existing_tool_registry:search_files_content
+    consumes:
+      - {port: directory, type: host_directory, required: true}
+      - {port: query, type: search_query, required: true}
+    produces: [{port: hits, type: file_search_hit}]
+    applicable_to: [host_directory_tree]
+    not_applicable_to: [image_internal_path, ordinary_file]
+    failure_modes: {reason_codes: [unreadable_file, generic_failure], output_conditions: [empty, search_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.sqlite.inspect_schema
+    tool_name: sqlite_schema
+    name: Inspect SQLite structure
+    capability_layer: generic_parser
+    short_description: List SQLite tables, views, and structured column overview without DDL.
+    executor_ref: existing_tool_registry:sqlite_schema
+    consumes: [{port: database, type: host_file, required: true}]
+    produces: [{port: schema, type: sqlite_schema}]
+    applicable_to: [unencrypted_sqlite_database]
+    not_applicable_to: [non_sqlite_file, encrypted_database]
+    failure_modes: {reason_codes: [encrypted_database, unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.sqlite.inspect_schema_detail
+    tool_name: sqlite_schema_detail
+    name: Inspect SQLite schema detail
+    capability_layer: generic_parser
+    short_description: Return exact or bounded DDL for one selected SQLite table, view, index, or trigger.
+    executor_ref: existing_tool_registry:sqlite_schema_detail
+    consumes:
+      - {port: database, type: host_file, required: true}
+      - {port: schema_object, type: sqlite_schema_object_name, required: true}
+    produces: [{port: schema_detail, type: sqlite_schema_detail}]
+    applicable_to: [unencrypted_sqlite_database]
+    not_applicable_to: [non_sqlite_file, encrypted_database, unknown_schema_object]
+    failure_modes: {reason_codes: [encrypted_database, unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.sqlite.query
+    tool_name: sqlite_query
+    name: Query SQLite database
+    capability_layer: generic_parser
+    short_description: Run one bounded read-only SELECT or WITH statement.
+    executor_ref: existing_tool_registry:sqlite_query
+    consumes:
+      - {port: database, type: host_file, required: true}
+      - {port: query, type: sqlite_query, required: true}
+      - {port: schema, type: sqlite_schema, required: false}
+    produces: [{port: rows, type: sqlite_row}]
+    applicable_to: [unencrypted_sqlite_database]
+    not_applicable_to: [non_sqlite_file, encrypted_database, mutating_sql]
+    failure_modes: {reason_codes: [encrypted_database, unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.sqlite.search
+    tool_name: sqlite_search
+    name: Search SQLite database
+    capability_layer: generic_parser
+    short_description: Search text representations across generic SQLite tables and columns.
+    executor_ref: existing_tool_registry:sqlite_search
+    consumes:
+      - {port: database, type: host_file, required: true}
+      - {port: query, type: search_query, required: true}
+      - {port: schema, type: sqlite_schema, required: false}
+    produces: [{port: hits, type: sqlite_search_hit}]
+    applicable_to: [unencrypted_sqlite_database]
+    not_applicable_to: [non_sqlite_file, encrypted_database]
+    failure_modes: {reason_codes: [encrypted_database, unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.sqlite.export_query
+    tool_name: sqlite_export_query
+    name: Export SQLite query
+    capability_layer: generic_parser
+    short_description: Export the bounded result of one read-only SQLite query.
+    executor_ref: existing_tool_registry:sqlite_export_query
+    consumes:
+      - {port: database, type: host_file, required: true}
+      - {port: query, type: sqlite_query, required: true}
+    produces: [{port: result_file, type: host_file}]
+    applicable_to: [unencrypted_sqlite_database]
+    not_applicable_to: [non_sqlite_file, encrypted_database, mutating_sql]
+    failure_modes: {reason_codes: [encrypted_database, unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.plist.parse
+    tool_name: parse_plist
+    name: Parse property list
+    capability_layer: generic_parser
+    short_description: Parse an XML or binary property list into generic structured data.
+    executor_ref: existing_tool_registry:parse_plist
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: document, type: structured_document}]
+    applicable_to: [xml_plist, binary_plist]
+    not_applicable_to: [non_plist_file]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.plist.search
+    tool_name: plist_search
+    name: Search property list
+    capability_layer: generic_parser
+    short_description: Search keys and values in an XML or binary property list.
+    executor_ref: existing_tool_registry:plist_search
+    consumes:
+      - {port: file, type: host_file, required: true}
+      - {port: query, type: search_query, required: true}
+    produces: [{port: hits, type: structured_search_hit}]
+    applicable_to: [xml_plist, binary_plist]
+    not_applicable_to: [non_plist_file]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.json.inspect
+    tool_name: inspect_json
+    name: Inspect JSON
+    capability_layer: generic_parser
+    short_description: Parse and preview a generic JSON document.
+    executor_ref: existing_tool_registry:inspect_json
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: document, type: structured_document}]
+    applicable_to: [json_file]
+    not_applicable_to: [non_json_file]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.xml.inspect
+    tool_name: inspect_xml
+    name: Inspect XML
+    capability_layer: generic_parser
+    short_description: Parse and preview a generic XML tree.
+    executor_ref: existing_tool_registry:inspect_xml
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: document, type: structured_document}]
+    applicable_to: [xml_file]
+    not_applicable_to: [non_xml_file]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.csv.inspect
+    tool_name: inspect_csv
+    name: Inspect delimited data
+    capability_layer: generic_parser
+    short_description: Parse and preview bounded rows from a generic delimited file.
+    executor_ref: existing_tool_registry:inspect_csv
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: rows, type: structured_row}]
+    applicable_to: [delimited_text_file]
+    not_applicable_to: [binary_file, non_delimited_text]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty, tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.ini.inspect
+    tool_name: inspect_ini
+    name: Inspect INI
+    capability_layer: generic_parser
+    short_description: Parse and preview generic INI sections and values.
+    executor_ref: existing_tool_registry:inspect_ini
+    consumes: [{port: file, type: host_file, required: true}]
+    produces: [{port: document, type: structured_document}]
+    applicable_to: [ini_file]
+    not_applicable_to: [non_ini_file]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.structured.search
+    tool_name: search_structured_file
+    name: Search structured file
+    capability_layer: generic_parser
+    short_description: Search parsed keys and values in supported generic structured files.
+    executor_ref: existing_tool_registry:search_structured_file
+    consumes:
+      - {port: file, type: host_file, required: true}
+      - {port: query, type: search_query, required: true}
+    produces: [{port: hits, type: structured_search_hit}]
+    applicable_to: [plist_file, json_file, xml_file, delimited_text_file, ini_file]
+    not_applicable_to: [unsupported_structured_format]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.archive.list_members
+    tool_name: list_archive
+    name: List archive members
+    capability_layer: primitive
+    short_description: List bounded member names and sizes from a supported archive.
+    executor_ref: existing_tool_registry:list_archive
+    consumes: [{port: archive, type: host_file, required: true}]
+    produces: [{port: member_locator, type: archive_member_locator}]
+    applicable_to: [supported_archive]
+    not_applicable_to: [unsupported_archive, ordinary_file]
+    underlying_dependencies: [7z]
+    failure_modes: {reason_codes: [unsupported_format, dependency_missing, generic_failure], output_conditions: [empty, tool_output_truncated]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.archive.extract_member
+    tool_name: extract_archive_member
+    name: Extract archive member
+    capability_layer: primitive
+    short_description: Safely extract one bounded regular member from an archive.
+    executor_ref: existing_tool_registry:extract_archive_member
+    consumes:
+      - {port: archive, type: host_file, required: true}
+      - {port: member_locator, type: archive_member_locator, required: true}
+    produces: [{port: file, type: host_file}]
+    applicable_to: [supported_archive, known_archive_member]
+    not_applicable_to: [unknown_archive_member, oversized_archive_member]
+    failure_modes: {reason_codes: [archive_member_too_large, unsupported_format, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.archive.expand
+    tool_name: expand_archive
+    name: Expand archive
+    capability_layer: primitive
+    short_description: Safely expand a supported archive within member and byte limits.
+    executor_ref: existing_tool_registry:expand_archive
+    consumes: [{port: archive, type: host_file, required: true}]
+    produces: [{port: tree, type: host_directory}]
+    applicable_to: [supported_archive]
+    not_applicable_to: [unsupported_archive, expansion_limit_exceeded]
+    underlying_dependencies: [7z]
+    failure_modes: {reason_codes: [archive_member_too_large, unsupported_format, dependency_missing, generic_failure], output_conditions: []}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.archive.expand_nested
+    tool_name: expand_nested_archives
+    name: Expand nested archives
+    capability_layer: primitive
+    short_description: Recursively expand archives below a host directory within fixed limits.
+    executor_ref: existing_tool_registry:expand_nested_archives
+    consumes: [{port: directory, type: host_directory, required: true}]
+    produces: [{port: tree, type: host_directory}]
+    applicable_to: [host_directory_with_archives]
+    not_applicable_to: [ordinary_file, expansion_limit_exceeded]
+    underlying_dependencies: [7z]
+    failure_modes: {reason_codes: [archive_member_too_large, unsupported_format, dependency_missing, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.media.read_image_metadata
+    tool_name: read_image_metadata
+    name: Read image metadata
+    capability_layer: generic_parser
+    short_description: Read dimensions, format, raw EXIF fields, file times, and hash.
+    executor_ref: existing_tool_registry:read_image_metadata
+    consumes: [{port: image, type: host_file, required: true}]
+    produces:
+      - {port: metadata, type: image_metadata}
+      - {port: timestamp, type: timestamp_value}
+    applicable_to: [supported_image_file]
+    not_applicable_to: [non_image_file, unsupported_image_format]
+    underlying_dependencies: [PIL]
+    failure_modes: {reason_codes: [unsupported_format, unreadable_file, dependency_missing, generic_failure], output_conditions: [empty]}
+
+  - <<: *profile0_defaults
+    capsule_id: p0.time.normalize
+    tool_name: normalize_timestamp
+    name: Normalize timestamp
+    capability_layer: primitive
+    short_description: Convert a numeric timestamp into UTC and local-time candidates.
+    executor_ref: existing_tool_registry:normalize_timestamp
+    consumes: [{port: timestamp, type: timestamp_value, required: true}]
+    produces: [{port: normalized_time, type: normalized_time_candidate}]
+    applicable_to: [numeric_timestamp]
+    not_applicable_to: [non_numeric_time, unsupported_time_encoding]
+    failure_modes: {reason_codes: [invalid_tool_arguments, generic_failure], output_conditions: []}
+
+  - version: 1.0.0
+    origin_profile: profile0
+    status: active
+    maturity: stable
+    capsule_type: primitive_capsule
+    underlying_dependencies: []
+    failure_semantics: {}
+    provenance_policy:
+      policy_ref: profile0-existing
+    runtime_limits:
+      policy_ref: existing_tool_definition
+    evolution:
+      verification_state: accepted
+      parent_capsules: []
+      records: []
+    composition:
+      enabled: false
+    capsule_id: p0.registry.read_value
+    tool_name: read_windows_registry_value
+    name: Read windows registry value
+    capability_layer: generic_parser
+    short_description: Read a caller-specified registry key path and registry value
+      from an offline Windows Registry hive; returns a decoded typed registry value.
+      hive_path must be an authorized host/tree hive path; export image members first.
+    executor_ref: existing_tool_registry:read_windows_registry_value
+    consumes:
+    - port: hive_path
+      type: WindowsRegistryHive
+      required: true
+    produces:
+    - port: result
+      type: RegistryValue
+    applicable_to:
+    - authorized_host_file
+    - offline_windows_hive
+    not_applicable_to:
+    - unexported_image_member
+    - unauthorized_host_path
+    - invalid_file_format
+    failure_modes:
+      reason_codes:
+      - unreadable_file
+      - invalid_tool_arguments
+      - tool_call_failed
+      output_conditions: []
+  - version: 1.0.0
+    origin_profile: profile0
+    status: active
+    maturity: stable
+    capsule_type: primitive_capsule
+    underlying_dependencies: []
+    failure_semantics: {}
+    provenance_policy:
+      policy_ref: profile0-existing
+    runtime_limits:
+      policy_ref: existing_tool_definition
+    evolution:
+      verification_state: accepted
+      parent_capsules: []
+      records: []
+    composition:
+      enabled: false
+    capsule_id: p0.ewf.parse_header
+    tool_name: parse_e01_header
+    name: Parse e01 header
+    capability_layer: generic_parser
+    short_description: Parse an E01/EWF forensic image header (header/header2) into
+      acquisition metadata, device information and acquisition timestamps; requires
+      an accessible authorized EWF image host path. Accepts only host/tree paths; for
+      image-index members use indexed-member tools or export_indexed_file first.
+    executor_ref: existing_tool_registry:parse_e01_header
+    consumes:
+    - port: file_path
+      type: EWFImage
+      required: true
+    produces:
+    - port: result
+      type: AcquisitionMetadata
+    applicable_to:
+    - authorized_host_file
+    - ewf_image
+    not_applicable_to:
+    - unexported_image_member
+    - unauthorized_host_path
+    - invalid_file_format
+    failure_modes:
+      reason_codes:
+      - unreadable_file
+      - invalid_tool_arguments
+      - tool_call_failed
+      output_conditions: []
+  - version: 1.0.0
+    origin_profile: profile0
+    status: active
+    maturity: stable
+    capsule_type: primitive_capsule
+    underlying_dependencies:
+    - PIL
+    failure_semantics: {}
+    provenance_policy:
+      policy_ref: profile0-existing
+    runtime_limits:
+      policy_ref: existing_tool_definition
+    evolution:
+      verification_state: accepted
+      parent_capsules: []
+      records: []
+    composition:
+      enabled: false
+    capsule_id: p0.media.analyze_image
+    tool_name: analyze_image
+    name: Analyze image
+    capability_layer: generic_parser
+    short_description: 'Analyze pixels and clearly visible content of one local image
+      artifact: visible text, objects and interface elements. This is visual observation,
+      distinct from read_image_metadata EXIF/format attributes; unsupported hidden facts
+      must not be inferred. image_path must be an authorized host/tree image path; export
+      image members first.'
+    executor_ref: existing_tool_registry:analyze_image
+    consumes:
+    - port: image_path
+      type: ImageArtifact
+      required: true
+    produces:
+    - port: result
+      type: VisualContent
+    applicable_to:
+    - authorized_host_file
+    - multi_platform_image
+    not_applicable_to:
+    - unexported_image_member
+    - unauthorized_host_path
+    - invalid_file_format
+    failure_modes:
+      reason_codes:
+      - unreadable_file
+      - invalid_tool_arguments
+      - tool_call_failed
+      output_conditions: []

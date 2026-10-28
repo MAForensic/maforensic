@@ -1,0 +1,449 @@
+{
+  "profile_version": "public-raw-baseline-v1",
+  "mode": "baseline",
+  "representation": "raw",
+  "lifecycle": "raw",
+  "description": "Conservative text contract; no sample-derived field guarantees.",
+  "tools": [
+    {
+      "tool_id": "analyze_image",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "build_file_index",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "compute_hash",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "detect_text_encoding",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "expand_archive",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "expand_nested_archives",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "export_file",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "export_indexed_file",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "extract_archive_member",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "extract_file_strings",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "extract_image_file",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "filesystem_info",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "get_indexed_file_metadata",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "identify_file_type",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "inspect_csv",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "inspect_ini",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "inspect_json",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "inspect_xml",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "list_archive",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "list_directory",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "list_partitions",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "normalize_timestamp",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "parse_e01_header",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "parse_plist",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "plist_search",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "probe_source",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "query_file_index",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "read_binary_range",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "read_image_metadata",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "read_indexed_binary_range",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "read_indexed_text",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "read_text",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "read_windows_registry_value",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "search_file",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "search_file_strings",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "search_files_content",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "search_indexed_file",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "search_structured_file",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "select_partition",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "sqlite_export_query",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "sqlite_query",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "sqlite_schema",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "sqlite_schema_detail",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    },
+    {
+      "tool_id": "sqlite_search",
+      "mode": "baseline",
+      "representation": "raw",
+      "lifecycle": "raw",
+      "output_schema": {
+        "type": "string"
+      },
+      "model_description": "Returns baseline raw tool text, including error/partial/truncation notices. Inspect the actual result. Empty or truncated output does not establish absence."
+    }
+  ]
+}

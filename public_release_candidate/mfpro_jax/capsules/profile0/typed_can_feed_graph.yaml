@@ -1,0 +1,4988 @@
+schema_version: typed-can-feed-graph-v1
+profile: profile0
+graph_version: typed-can-feed-v1
+semantics: Directed typed ports on validated success branches. Conditions are not
+  waived; no automatic execution/rebinding.
+provenance:
+  publication: source-candidate-owner-review
+  graph_contract: typed-can-feed-v1
+  private_validation_data: not distributed
+nodes:
+- node_id: p0.source.probe
+  tool_name: probe_source
+  brief: Check the active evidence source and basic dependency availability.
+  capability_family: source
+  workflow_stage: prepare
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties: {}
+    consumes:
+    - type: ActiveSource
+      binding_fields: ctx.active_source
+      preconditions: tree/image; readiness only
+    produces:
+    - type: SourceReadiness
+      pointer: /access_mode,/status
+      constraints: No Source ID/path/handle produced
+    parameter_semantics: {}
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:299
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 80
+      end_line: 95
+      signature: 'ctx: RuntimeContext'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.image.list_partitions
+  tool_name: list_partitions
+  brief: List partitions from the active disk image when partition discovery is needed.
+  capability_family: image
+  workflow_stage: discover
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties: {}
+    consumes:
+    - type: ActiveImageSource
+      binding_fields: ctx.active_source
+      preconditions: image + mmls
+    produces:
+    - type: PartitionRef
+      pointer: /partitions/*/partition_id
+      constraints: retain active Source identity; listed IDs only
+    parameter_semantics: {}
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:300
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 98
+      end_line: 117
+      signature: 'ctx: RuntimeContext'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.image.select_partition
+  tool_name: select_partition
+  brief: Select a partition by stable partition ID and activate its offset context.
+  capability_family: image
+  workflow_stage: prepare
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        partition_id:
+          type: string
+          description: Partition identifier returned by list_partitions.
+      required:
+      - partition_id
+    consumes:
+    - type: PartitionRef
+      binding_fields: partition_id + active source
+      preconditions: listed partition; updates active offset; no arbitrary byte-offset
+        input
+    produces:
+    - type: ActivePartitionState
+      pointer: /partition_id + ctx.source_access
+      constraints: state mutation; partition geometry not in RAW
+    parameter_semantics:
+      partition_id: Partition identifier returned by list_partitions.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:301
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 120
+      end_line: 140
+      signature: 'ctx: RuntimeContext, partition_id: str'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.filesystem.inspect
+  tool_name: filesystem_info
+  brief: Inspect generic filesystem metadata for the active source or partition.
+  capability_family: filesystem
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties: {}
+    consumes:
+    - type: ActiveSourcePartition
+      binding_fields: ctx.active_source + ctx.access_state
+      preconditions: tree/image; no explicit path port
+    produces:
+    - type: FilesystemMetadata
+      pointer: /filesystem_type,/geometry?
+      constraints: no file locator
+    parameter_semantics: {}
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:302
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 143
+      end_line: 156
+      signature: 'ctx: RuntimeContext'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.filesystem.list_directory
+  tool_name: list_directory
+  brief: Enumerate files and directories from an evidence tree path or image filesystem.
+  capability_family: filesystem
+  workflow_stage: discover
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: ''
+          default: .
+        inode:
+          type: string
+          description: ''
+          default: ''
+        recursive:
+          type: boolean
+          description: ''
+          default: false
+    consumes:
+    - type: ActiveTreeDirectoryOrImageInode
+      binding_fields: path OR inode + active Source/Partition
+      preconditions: tree relative-root path; image requires observed directory inode
+        for non-root
+    produces:
+    - type: TreeRegularFileLocator
+      pointer: /entries/*/{path,kind}
+      constraints: tree branch + retained active root/source
+    - type: ImageFileInode
+      pointer: /entries/*/{inode,kind}
+      constraints: image branch + retained Source/Partition; inode != file_id
+    parameter_semantics:
+      path: active-source directory virtual path, not arbitrary host directory
+      inode: image inode bound to active source/partition; not file_id
+      recursive: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:303
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 197
+      end_line: 241
+      signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+        bool=False'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.image.extract_inode_file
+  tool_name: extract_image_file
+  brief: Materialize one image filesystem member selected by inode as a persistent
+    host file.
+  capability_family: image
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        inode:
+          type: string
+          description: ''
+        output_name:
+          type: string
+          description: ''
+          default: ''
+      required:
+      - inode
+    consumes:
+    - type: ImageFileInode
+      binding_fields: inode + active image/partition
+      preconditions: regular image member; icat; active scope retained
+    produces:
+    - type: HostRegularFile
+      pointer: /output_path
+      constraints: persistent materialized file, not directory; unknown format
+    parameter_semantics:
+      inode: image inode bound to active source/partition; not file_id
+      output_name: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:304
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 287
+      end_line: 302
+      signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.file.export
+  tool_name: export_file
+  brief: Materialize one readable tree-evidence file as a bounded persistent host
+    file.
+  capability_family: file
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        output_name:
+          type: string
+          description: ''
+          default: ''
+        max_bytes:
+          type: integer
+          description: ''
+          default: 1073741824
+      required:
+      - file_path
+    consumes:
+    - type: TreeRegularFileLocator
+      binding_fields: file_path + active tree root
+      preconditions: regular readable nonsymlink tree file under active root; not
+        arbitrary run output
+    produces:
+    - type: HostRegularFile
+      pointer: /output_path
+      constraints: persistent complete file on success; no declared parser format
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      output_name: ''
+      max_bytes: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:305
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 617
+      end_line: 633
+      signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+        int=1073741824'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.index.build
+  tool_name: build_file_index
+  brief: Build or reuse a file index for the active evidence source.
+  capability_family: index
+  workflow_stage: prepare
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties: {}
+    consumes:
+    - type: ActiveSourcePartition
+      binding_fields: ctx.active_source + ctx.access_state
+      preconditions: no root/path argument; writes/reuses scoped index state
+    produces:
+    - type: ActiveIndexedSourceState
+      pointer: ctx.indexes/index_cache + /entries(count)
+      constraints: state, not returned file handles
+    parameter_semantics: {}
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:306
+    executor_ref:
+      path: mfpro_jax/index.py
+      line: 112
+      end_line: 214
+      signature: 'ctx: RuntimeContext, compute_hash: bool=False'
+      source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.index.query
+  tool_name: query_file_index
+  brief: Search the file index by name, path, extension, metadata, or time filter.
+  capability_family: index
+  workflow_stage: discover
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        path_pattern:
+          type: string
+          description: ''
+          default: '*'
+        name_pattern:
+          type: string
+          description: ''
+          default: '*'
+        extension:
+          type: string
+          description: ''
+          default: ''
+        file_type:
+          type: string
+          description: ''
+          default: ''
+        min_size:
+          type: integer
+          description: ''
+          default: 0
+        max_size:
+          type: integer
+          description: ''
+          default: -1
+        is_deleted:
+          type: boolean
+          description: ''
+        time_field:
+          type: string
+          description: ''
+          default: ''
+        time_after:
+          type: string
+          description: ''
+          default: ''
+        time_before:
+          type: string
+          description: ''
+          default: ''
+        max_results:
+          type: integer
+          description: ''
+          default: 200
+    consumes:
+    - type: ActiveIndexedSourceState
+      binding_fields: ctx.active_source/index cache
+      preconditions: auto-builds if index missing; filters are query predicates, not
+        handles
+    produces:
+    - type: IndexedMemberRef
+      pointer: /results/*/{source_id,file_id,path,kind}
+      constraints: identity pair in same object; kind discriminates file/directory
+    parameter_semantics:
+      path_pattern: ''
+      name_pattern: ''
+      extension: ''
+      file_type: ''
+      min_size: ''
+      max_size: ''
+      is_deleted: ''
+      time_field: ''
+      time_after: ''
+      time_before: ''
+      max_results: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:307
+    executor_ref:
+      path: mfpro_jax/index.py
+      line: 217
+      end_line: 260
+      signature: 'ctx: RuntimeContext, path_pattern: str=''*'', name_pattern: str=''*'',
+        extension: str='''', file_type: str='''', min_size: int=0, max_size: int=-1,
+        is_deleted: bool | None=None, time_field: str='''', time_after: str='''',
+        time_before: str='''', max_results: int=200'
+      source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.indexed_file.get_metadata
+  tool_name: get_indexed_file_metadata
+  brief: Return metadata for one indexed evidence member selected by source_id and
+    file_id.
+  capability_family: indexed_file
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        source_id:
+          type: string
+          description: ''
+        file_id:
+          type: string
+          description: ''
+      required:
+      - source_id
+      - file_id
+    consumes:
+    - type: IndexedMemberRef
+      binding_fields: source_id + file_id
+      preconditions: same run/source index entry; metadata may describe directory
+    produces:
+    - type: IndexedMemberMetadata
+      pointer: /evidence_path,/inode?,/timestamps
+      constraints: no source/file ID echo; retain input pair; evidence_path not host
+        path
+    parameter_semantics:
+      source_id: paired run/source-scoped indexed handle; never arbitrary string
+      file_id: paired run/source-scoped indexed handle; never arbitrary string
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:314
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 366
+      end_line: 386
+      signature: 'ctx: RuntimeContext, source_id: str, file_id: str'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.indexed_file.export
+  tool_name: export_indexed_file
+  brief: Materialize one indexed evidence member as a bounded persistent host file.
+  capability_family: indexed_file
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        source_id:
+          type: string
+          description: ''
+        file_id:
+          type: string
+          description: ''
+        output_name:
+          type: string
+          description: ''
+          default: ''
+        max_bytes:
+          type: integer
+          description: ''
+          default: 1073741824
+      required:
+      - source_id
+      - file_id
+    consumes:
+    - type: IndexedMemberRef
+      binding_fields: source_id + file_id
+      preconditions: file branch readable under limits; restores source/entry partition
+    produces:
+    - type: HostRegularFile
+      pointer: /output_path
+      constraints: success materialization; retained input scope; no format proof
+    parameter_semantics:
+      source_id: paired run/source-scoped indexed handle; never arbitrary string
+      file_id: paired run/source-scoped indexed handle; never arbitrary string
+      output_name: ''
+      max_bytes: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:315
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 389
+      end_line: 416
+      signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name:
+        str='''', max_bytes: int=1073741824'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.indexed_file.read_text
+  tool_name: read_indexed_text
+  brief: Read bounded decoded text directly from an indexed evidence member.
+  capability_family: indexed_file
+  workflow_stage: read
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        source_id:
+          type: string
+          description: ''
+        file_id:
+          type: string
+          description: ''
+        offset:
+          type: integer
+          description: Byte offset from the start of the indexed member.
+          default: 0
+          minimum: 0
+        max_bytes:
+          type: integer
+          description: Maximum bytes to read before decoding.
+          default: 16000
+          minimum: 1
+          maximum: 1048576
+        encoding:
+          type: string
+          description: Python codec name or auto.
+          default: auto
+      required:
+      - source_id
+      - file_id
+    consumes:
+    - type: IndexedMemberRef
+      binding_fields: source_id + file_id
+      preconditions: bounded bytes; encoding optional; restores entry scope; temporary
+        image file not output handle
+    produces:
+    - type: BoundedText
+      pointer: /text,/encoding,/next_offset?
+      constraints: source_id/file_id/partition echoed; no persistent temp path
+    parameter_semantics:
+      source_id: paired run/source-scoped indexed handle; never arbitrary string
+      file_id: paired run/source-scoped indexed handle; never arbitrary string
+      offset: Byte offset from the start of the indexed member.
+      max_bytes: Maximum bytes to read before decoding.
+      encoding: Python codec name or auto.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:316
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 537
+      end_line: 544
+      signature: 'ctx: RuntimeContext, source_id: str, file_id: str, offset: int=0,
+        max_bytes: int=16000, encoding: str=''auto'''
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.indexed_file.read_binary
+  tool_name: read_indexed_binary_range
+  brief: Read a bounded binary range from an indexed evidence member as hex and ASCII.
+  capability_family: indexed_file
+  workflow_stage: read
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        source_id:
+          type: string
+          description: ''
+        file_id:
+          type: string
+          description: ''
+        offset:
+          type: integer
+          description: Byte offset from the start of the indexed member.
+          default: 0
+          minimum: 0
+        length:
+          type: integer
+          description: Number of bytes to read.
+          default: 2048
+          minimum: 1
+          maximum: 1048576
+      required:
+      - source_id
+      - file_id
+    consumes:
+    - type: IndexedMemberRef
+      binding_fields: source_id + file_id
+      preconditions: member-relative byte offset/length; no arbitrary host path
+    produces:
+    - type: BoundedBinary
+      pointer: /hexdump,/next_offset?
+      constraints: source_id/file_id binding; offsets are bytes
+    parameter_semantics:
+      source_id: paired run/source-scoped indexed handle; never arbitrary string
+      file_id: paired run/source-scoped indexed handle; never arbitrary string
+      offset: Byte offset from the start of the indexed member.
+      length: Number of bytes to read.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:317
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 547
+      end_line: 554
+      signature: 'ctx: RuntimeContext, source_id: str, file_id: str, offset: int=0,
+        length: int=2048'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.indexed_file.search
+  tool_name: search_indexed_file
+  brief: Search one indexed evidence member for bounded located literal or regex matches.
+  capability_family: indexed_file
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        source_id:
+          type: string
+          description: ''
+        file_id:
+          type: string
+          description: ''
+        pattern:
+          type: string
+          description: ''
+        regex:
+          type: boolean
+          description: ''
+        context_chars:
+          type: integer
+          description: ''
+          minimum: 0
+          maximum: 4096
+          default: 80
+        max_results:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 1000
+          default: 100
+      required:
+      - source_id
+      - file_id
+      - pattern
+    consumes:
+    - type: IndexedMemberRef
+      binding_fields: source_id + file_id
+      preconditions: task-grounded pattern also required; member-relative byte offsets
+        may be null
+    produces:
+    - type: LocatedIndexedByteMatch
+      pointer: /results/*/byte_offset
+      constraints: source_id/file_id scope retained; null offsets not usable
+    parameter_semantics:
+      source_id: paired run/source-scoped indexed handle; never arbitrary string
+      file_id: paired run/source-scoped indexed handle; never arbitrary string
+      pattern: ''
+      regex: ''
+      context_chars: ''
+      max_results: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:318
+    executor_ref:
+      path: mfpro_jax/tools/source_access.py
+      line: 473
+      end_line: 534
+      signature: 'ctx: RuntimeContext, source_id: str, file_id: str, pattern: str,
+        regex: bool=False, context_chars: int=80, max_results: int=100'
+      source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.file.read_text
+  tool_name: read_text
+  brief: Read a bounded host-file text range with generic encoding detection.
+  capability_family: text
+  workflow_stage: read
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        offset:
+          type: integer
+          description: Byte offset from the start of the file.
+          default: 0
+          minimum: 0
+        max_bytes:
+          type: integer
+          description: Maximum bytes to read before decoding.
+          default: 16000
+          minimum: 1
+          maximum: 1048576
+        encoding:
+          type: string
+          description: Python codec name or auto.
+          default: auto
+      required:
+      - file_path
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: bounded decode; binary allowed but may be lossy; no promise of
+        text semantics
+    produces:
+    - type: BoundedText
+      pointer: /text,/encoding,/next_offset?
+      constraints: no automatic file reference extracted from text
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      offset: Byte offset from the start of the file.
+      max_bytes: Maximum bytes to read before decoding.
+      encoding: Python codec name or auto.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:319
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 101
+      end_line: 122
+      signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.file.read_binary
+  tool_name: read_binary_range
+  brief: Read a bounded host-file binary range as hex and ASCII.
+  capability_family: binary
+  workflow_stage: read
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        offset:
+          type: integer
+          description: Byte offset from the start of the file.
+          default: 0
+          minimum: 0
+        length:
+          type: integer
+          description: Number of bytes to read.
+          default: 2048
+          minimum: 1
+          maximum: 1048576
+      required:
+      - file_path
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: bounded byte offset/length
+    produces:
+    - type: BoundedBinary
+      pointer: /hexdump,/next_offset?
+      constraints: numbers/bytes are not timestamp objects
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      offset: Byte offset from the start of the file.
+      length: Number of bytes to read.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:320
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 125
+      end_line: 142
+      signature: 'file_path: str, offset: int=0, length: int=2048'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.file.compute_hash
+  tool_name: compute_hash
+  brief: Compute full-file cryptographic digest values for a host file.
+  capability_family: hash_type
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        algorithms:
+          type: array
+          items:
+            type: string
+          default:
+          - sha256
+      required:
+      - file_path
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: entire readable file; valid digest algorithms
+    produces:
+    - type: FileDigest
+      pointer: /digests
+      constraints: hash string not a file handle
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      algorithms: task/query/range parameter; no implicit evidence conversion
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:321
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 145
+      end_line: 159
+      signature: 'file_path: str, algorithms: list[str] | None=None'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.file.identify_type
+  tool_name: identify_file_type
+  brief: Identify generic file type, MIME, and magic information for a host file.
+  capability_family: hash_type
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+      required:
+      - file_path
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: file dependency; MIME inference is advisory, not exact parser
+        validation
+    produces:
+    - type: AdvisoryFileType
+      pointer: /extension_mime,/detected_mime
+      constraints: MIME mismatch/absence possible; not strong parser validation
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:322
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 162
+      end_line: 180
+      signature: 'file_path: str'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.text.detect_encoding
+  tool_name: detect_text_encoding
+  brief: Detect likely text encoding for a bounded host file.
+  capability_family: text
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        sample_bytes:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 1048576
+          default: 65536
+      required:
+      - file_path
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: bounded sample; empty file gives unknown
+    produces:
+    - type: DetectedEncoding
+      pointer: /encoding,/sampled_bytes
+      constraints: unknown on empty sample; retain file_path provenance
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      sample_bytes: ''
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:323
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 199
+      end_line: 204
+      signature: 'file_path: str, sample_bytes: int=65536'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.binary.extract_strings
+  tool_name: extract_file_strings
+  brief: Extract bounded printable strings from a host file with byte offsets.
+  capability_family: binary
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        min_length:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 4096
+          default: 4
+        max_results:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 1000
+          default: 500
+        max_bytes:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 268435456
+          default: 268435456
+      required:
+      - file_path
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: bounded ASCII/UTF16LE printable scan, not timestamp parsing
+    produces:
+    - type: LocatedHostString
+      pointer: /results/*
+      constraints: offset/value bounded; not arbitrary file locators from strings
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      min_length: ''
+      max_results: ''
+      max_bytes: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:324
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 375
+      end_line: 407
+      signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+        int=268435456'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.binary.search_strings
+  tool_name: search_file_strings
+  brief: Search printable host-file strings and return bounded byte-offset matches.
+  capability_family: binary
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        pattern:
+          type: string
+          description: ''
+        regex:
+          type: boolean
+          description: ''
+        min_length:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 4096
+          default: 4
+        max_results:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 1000
+          default: 200
+        max_bytes:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 268435456
+          default: 268435456
+      required:
+      - file_path
+      - pattern
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: additional task pattern; exact byte offsets for returned strings
+    produces:
+    - type: LocatedHostByteMatch
+      pointer: /results/*/byte_offset
+      constraints: retain producer file_path; scan/truncation disclosed
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      pattern: ''
+      regex: ''
+      min_length: ''
+      max_results: ''
+      max_bytes: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:325
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 410
+      end_line: 452
+      signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+        max_results: int=200, max_bytes: int=268435456'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.file.search
+  tool_name: search_file
+  brief: Search one host file for bounded byte-offset literal or regex matches.
+  capability_family: text
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        pattern:
+          type: string
+          description: ''
+        regex:
+          type: boolean
+          description: ''
+        context_chars:
+          type: integer
+          description: ''
+          minimum: 0
+          maximum: 4096
+          default: 80
+        max_results:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 1000
+          default: 100
+      required:
+      - file_path
+      - pattern
+    consumes:
+    - type: HostRegularFile
+      binding_fields: file_path
+      preconditions: additional task pattern; byte offset may be null
+    produces:
+    - type: LocatedHostByteMatch
+      pointer: /results/*/byte_offset
+      constraints: nullable byte offsets; retain producer file_path
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      pattern: ''
+      regex: ''
+      context_chars: ''
+      max_results: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:326
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 455
+      end_line: 466
+      signature: 'file_path: str, pattern: str, regex: bool=False, context_chars:
+        int=80, max_results: int=100'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.directory.search_content
+  tool_name: search_files_content
+  brief: Recursively search readable files under a directory and return bounded located
+    matches.
+  capability_family: text
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        root:
+          type: string
+          description: ''
+        pattern:
+          type: string
+          description: ''
+        regex:
+          type: boolean
+          description: ''
+        extensions:
+          type: array
+          items:
+            type: string
+        max_file_size:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 268435456
+          default: 10485760
+        max_results:
+          type: integer
+          description: ''
+          minimum: 1
+          maximum: 1000
+          default: 200
+      required:
+      - root
+      - pattern
+    consumes:
+    - type: HostDirectory
+      binding_fields: root
+      preconditions: additional task pattern; relative paths are root-bound; no symlink/oversize
+        traversal promise
+    produces:
+    - type: LocatedHostMember
+      pointer: /results/*/relative_path
+      constraints: join retained normalized root; readable matched file; same-file
+        hits dedupable
+    parameter_semantics:
+      root: host/tree path; normalize and enforce case roots/run directory; not image
+        internal path
+      pattern: ''
+      regex: ''
+      extensions: task/query/range parameter; no implicit evidence conversion
+      max_file_size: ''
+      max_results: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:327
+    executor_ref:
+      path: mfpro_jax/tools/readers.py
+      line: 469
+      end_line: 551
+      signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+        | None=None, max_file_size: int=10485760, max_results: int=200'
+      source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.sqlite.inspect_schema
+  tool_name: sqlite_schema
+  brief: Inspect SQLite tables, views, and columns as a compact structure overview.
+  capability_family: sqlite
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        db_path:
+          type: string
+          description: ''
+      required:
+      - db_path
+    consumes:
+    - type: SQLiteDatabaseFile
+      binding_fields: db_path
+      preconditions: readable valid DB; readonly connection; correct snapshot/WAL
+        context
+    produces:
+    - type: BoundDatabaseObject
+      pointer: /objects/*/{name,type,columns}
+      constraints: retain input db_path; object/column truncation; no actual SELECT
+    parameter_semantics:
+      db_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:328
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 321
+      end_line: 341
+      signature: 'db_path: str'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.sqlite.inspect_schema_detail
+  tool_name: sqlite_schema_detail
+  brief: Retrieve exact bounded CREATE SQL for one selected SQLite schema object.
+  capability_family: sqlite
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        db_path:
+          type: string
+          description: ''
+        object_name:
+          type: string
+          description: ''
+        object_type:
+          type: string
+          description: 'Optional object type: table, view, index, or trigger.'
+          default: ''
+          enum:
+          - ''
+          - table
+          - view
+          - index
+          - trigger
+      required:
+      - db_path
+      - object_name
+    consumes:
+    - type: BoundDatabaseObject
+      binding_fields: db_path + object_name + optional object_type
+      preconditions: existing object of supported type in same DB snapshot
+    produces:
+    - type: DatabaseDDL
+      pointer: /name,/type,/sql
+      constraints: retain db identity; DDL not executable read-only query input
+    parameter_semantics:
+      db_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      object_name: ''
+      object_type: 'Optional object type: table, view, index, or trigger.'
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:329
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 344
+      end_line: 385
+      signature: 'db_path: str, object_name: str, object_type: str='''''
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.sqlite.query
+  tool_name: sqlite_query
+  brief: Run a bounded read-only SQL query against a SQLite database file.
+  capability_family: sqlite
+  workflow_stage: parse
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        db_path:
+          type: string
+          description: ''
+        query:
+          type: string
+          description: ''
+        max_rows:
+          type: integer
+          description: Maximum rows to return.
+          default: 100
+          minimum: 1
+          maximum: 1000
+      required:
+      - db_path
+      - query
+    consumes:
+    - type: SQLiteDatabaseFile
+      binding_fields: db_path
+      preconditions: query is separate required task-grounded single SELECT/WITH;
+        not supplied by arbitrary schema text
+    produces:
+    - type: BoundedSQLRows
+      pointer: /columns,/rows
+      constraints: retain DB/query provenance; numeric cells not automatically timestamps
+    parameter_semantics:
+      db_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      query: ''
+      max_rows: Maximum rows to return.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:330
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 560
+      end_line: 569
+      signature: 'db_path: str, query: str, max_rows: int=100'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.sqlite.search
+  tool_name: sqlite_search
+  brief: Search text values across tables in a SQLite database file.
+  capability_family: sqlite
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        db_path:
+          type: string
+          description: ''
+        keyword:
+          type: string
+          description: ''
+        max_results:
+          type: integer
+          description: Maximum matches to return.
+          default: 100
+          minimum: 1
+          maximum: 1000
+      required:
+      - db_path
+      - keyword
+    consumes:
+    - type: SQLiteDatabaseFile
+      binding_fields: db_path
+      preconditions: separate literal keyword; no table/column input parameters
+    produces:
+    - type: LocatedDatabaseHit
+      pointer: /results/*/{table,column,rowid,primary_key,value}
+      constraints: retain db_path; row keys nullable; value may be truncated
+    parameter_semantics:
+      db_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      keyword: ''
+      max_results: Maximum matches to return.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:331
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 603
+      end_line: 676
+      signature: 'db_path: str, keyword: str, max_results: int=100'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.sqlite.export_query
+  tool_name: sqlite_export_query
+  brief: Materialize one read-only SQLite query result as a persistent host file.
+  capability_family: sqlite
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        db_path:
+          type: string
+          description: ''
+        query:
+          type: string
+          description: ''
+        output_path:
+          type: string
+          description: ''
+        max_rows:
+          type: integer
+          description: ''
+          default: 10000
+          minimum: 1
+          maximum: 10000
+      required:
+      - db_path
+      - query
+      - output_path
+    consumes:
+    - type: SQLiteDatabaseFile
+      binding_fields: db_path
+      preconditions: separate SELECT/WITH and safe output_path; reexecutes SQL, does
+        not consume prior rows
+    produces:
+    - type: JSONFile
+      pointer: /output_path
+      constraints: persistent UTF8 JSON {columns,rows,max_rows}; suffix chosen by
+        caller, not guaranteed .json
+    parameter_semantics:
+      db_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      query: ''
+      output_path: output must remain in isolated run directory
+      max_rows: ''
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:332
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 679
+      end_line: 690
+      signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.plist.parse
+  tool_name: parse_plist
+  brief: Parse a property list file into a bounded structured preview.
+  capability_family: structured
+  workflow_stage: parse
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+      required:
+      - file_path
+    consumes:
+    - type: PlistFile
+      binding_fields: file_path
+      preconditions: valid XML/binary plist; bounded parser
+    produces:
+    - type: StructuredPreview
+      pointer: /root_type,/preview
+      constraints: bounded plist preview; no new host file/handle
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:333
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 693
+      end_line: 702
+      signature: 'file_path: str'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.plist.search
+  tool_name: plist_search
+  brief: Search keys and values inside a property list file.
+  capability_family: structured
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        keyword:
+          type: string
+          description: ''
+        max_results:
+          type: integer
+          description: Maximum matches to return.
+          default: 200
+          minimum: 1
+          maximum: 1000
+      required:
+      - file_path
+      - keyword
+    consumes:
+    - type: PlistFile
+      binding_fields: file_path
+      preconditions: valid plist + literal keyword
+    produces:
+    - type: LocatedStructuredValue
+      pointer: /results/*
+      constraints: JSON Pointer + bounded values; not new file locator
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      keyword: ''
+      max_results: Maximum matches to return.
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:334
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 779
+      end_line: 792
+      signature: 'file_path: str, keyword: str, max_results: int=200'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.json.inspect
+  tool_name: inspect_json
+  brief: Inspect JSON structure and selected values from a bounded host file.
+  capability_family: structured
+  workflow_stage: parse
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+      required:
+      - file_path
+    consumes:
+    - type: JSONFile
+      binding_fields: file_path
+      preconditions: finite JSON, duplicate keys rejected; input byte limit
+    produces:
+    - type: StructuredPreview
+      pointer: /root_type,/preview
+      constraints: bounded finite JSON structure
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:335
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 795
+      end_line: 819
+      signature: 'file_path: str'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.xml.inspect
+  tool_name: inspect_xml
+  brief: Inspect XML structure and selected values from a bounded host file.
+  capability_family: structured
+  workflow_stage: parse
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+      required:
+      - file_path
+    consumes:
+    - type: XMLFile
+      binding_fields: file_path
+      preconditions: well-formed XML without DTD/entities; byte limit
+    produces:
+    - type: StructuredPreview
+      pointer: /root,/node_count
+      constraints: bounded tree and counts
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:336
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 822
+      end_line: 880
+      signature: 'file_path: str'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.csv.inspect
+  tool_name: inspect_csv
+  brief: Inspect delimited table rows and columns from a bounded host file.
+  capability_family: structured
+  workflow_stage: parse
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        max_rows:
+          type: integer
+          description: Rows to preview.
+          default: 200
+          minimum: 1
+          maximum: 1000
+      required:
+      - file_path
+    consumes:
+    - type: DelimitedTextFile
+      binding_fields: file_path
+      preconditions: UTF8-sig bounded delimited text; header not inferred
+    produces:
+    - type: DelimitedRows
+      pointer: /rows,/delimiter
+      constraints: bounded row arrays; not table/column SQL identity
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      max_rows: Rows to preview.
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:337
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 883
+      end_line: 937
+      signature: 'file_path: str, max_rows: int=200'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.ini.inspect
+  tool_name: inspect_ini
+  brief: Inspect INI sections and key-value pairs from a bounded host file.
+  capability_family: structured
+  workflow_stage: parse
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+      required:
+      - file_path
+    consumes:
+    - type: INIFile
+      binding_fields: file_path
+      preconditions: valid INI; case preserving, interpolation off
+    produces:
+    - type: StructuredPreview
+      pointer: /defaults,/sections
+      constraints: bounded raw INI values
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:338
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 940
+      end_line: 958
+      signature: 'file_path: str'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.structured.search
+  tool_name: search_structured_file
+  brief: Search values in supported structured files such as JSON, XML, CSV, INI,
+    or plist.
+  capability_family: structured
+  workflow_stage: search
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+        keyword:
+          type: string
+          description: ''
+        max_results:
+          type: integer
+          description: Maximum matches to return.
+          default: 200
+          minimum: 1
+          maximum: 1000
+      required:
+      - file_path
+      - keyword
+    consumes:
+    - type: SupportedStructuredFile
+      binding_fields: file_path
+      preconditions: suffix dispatch .json/.xml/.csv/.tsv/.ini/.plist etc + keyword;
+        not any JSON string
+    produces:
+    - type: LocatedStructuredValue
+      pointer: /results/*
+      constraints: format-specific paths + bounded scalar; not new file locator
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+      keyword: ''
+      max_results: Maximum matches to return.
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:339
+    executor_ref:
+      path: mfpro_jax/tools/structured.py
+      line: 1122
+      end_line: 1156
+      signature: 'file_path: str, keyword: str, max_results: int=200'
+      source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.archive.list_members
+  tool_name: list_archive
+  brief: List members of an archive without extracting all content.
+  capability_family: archive
+  workflow_stage: discover
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        archive_path:
+          type: string
+          description: ''
+        max_members:
+          type: integer
+          description: ''
+          default: 10000
+      required:
+      - archive_path
+    consumes:
+    - type: SupportedArchiveFile
+      binding_fields: archive_path
+      preconditions: ZIP/tar/gzip and external 7z/rar listing support differs from
+        member extraction
+    produces:
+    - type: ArchiveMemberRef
+      pointer: /entries/*/{member,kind,size}
+      constraints: retain archive_path; 7z listing does not imply member extractor
+        support
+    parameter_semantics:
+      archive_path: host/tree path; normalize and enforce case roots/run directory;
+        not image internal path
+      max_members: ''
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:340
+    executor_ref:
+      path: mfpro_jax/tools/archive.py
+      line: 90
+      end_line: 129
+      signature: 'archive_path: str, max_members: int=10000'
+      source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.archive.extract_member
+  tool_name: extract_archive_member
+  brief: Materialize one selected regular archive member as a bounded persistent host
+    file.
+  capability_family: archive
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        archive_path:
+          type: string
+          description: ''
+        member:
+          type: string
+          description: ''
+        output_dir:
+          type: string
+          description: ''
+        max_expanded_bytes:
+          type: integer
+          description: ''
+          default: 1073741824
+      required:
+      - archive_path
+      - member
+      - output_dir
+    consumes:
+    - type: BoundArchiveMember
+      binding_fields: archive_path + member
+      preconditions: regular safe member; ZIP/tar/gzip only; output_dir separately
+        required
+    produces:
+    - type: HostRegularFile
+      pointer: /output_path
+      constraints: persistent selected member; archive format/member safety guards
+        required
+    parameter_semantics:
+      archive_path: host/tree path; normalize and enforce case roots/run directory;
+        not image internal path
+      member: ''
+      output_dir: output must remain in isolated run directory
+      max_expanded_bytes: ''
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:341
+    executor_ref:
+      path: mfpro_jax/tools/archive.py
+      line: 140
+      end_line: 187
+      signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+        int=1073741824'
+      source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.archive.expand
+  tool_name: expand_archive
+  brief: Materialize archive contents into a bounded persistent output directory.
+  capability_family: archive
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        archive_path:
+          type: string
+          description: ''
+        output_dir:
+          type: string
+          description: ''
+        max_members:
+          type: integer
+          description: ''
+          default: 100000
+        max_expanded_bytes:
+          type: integer
+          description: ''
+          default: 10737418240
+      required:
+      - archive_path
+      - output_dir
+    consumes:
+    - type: SupportedArchiveFile
+      binding_fields: archive_path
+      preconditions: ZIP/tar/7z; output_dir and resource limits; does not switch active
+        Source
+    produces:
+    - type: HostDirectory
+      pointer: /output_path
+      constraints: materialized directory; not an active Source or individual file
+    parameter_semantics:
+      archive_path: host/tree path; normalize and enforce case roots/run directory;
+        not image internal path
+      output_dir: output must remain in isolated run directory
+      max_members: ''
+      max_expanded_bytes: ''
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:342
+    executor_ref:
+      path: mfpro_jax/tools/archive.py
+      line: 291
+      end_line: 298
+      signature: 'archive_path: str, output_dir: str, max_members: int=100000, max_expanded_bytes:
+        int=10737418240'
+      source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.archive.expand_nested
+  tool_name: expand_nested_archives
+  brief: Materialize recursively expanded archive contents into a bounded output directory.
+  capability_family: archive
+  workflow_stage: export
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        root:
+          type: string
+          description: ''
+        max_depth:
+          type: integer
+          description: ''
+          default: 2
+        max_members:
+          type: integer
+          description: ''
+          default: 100000
+        max_expanded_bytes:
+          type: integer
+          description: ''
+          default: 10737418240
+      required:
+      - root
+    consumes:
+    - type: HostDirectory
+      binding_fields: root
+      preconditions: walk supported archives under root; bounded output; no Source
+        rebind
+    produces:
+    - type: HostDirectory
+      pointer: /output_path
+      constraints: output directory; does not bind active Source
+    parameter_semantics:
+      root: host/tree path; normalize and enforce case roots/run directory; not image
+        internal path
+      max_depth: ''
+      max_members: ''
+      max_expanded_bytes: ''
+    evidence_level: CONTRACT_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:343
+    executor_ref:
+      path: mfpro_jax/tools/archive.py
+      line: 340
+      end_line: 371
+      signature: 'root: str, output_root: str, max_depth: int=2, max_members: int=100000,
+        max_expanded_bytes: int=10737418240'
+      source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.media.read_image_metadata
+  tool_name: read_image_metadata
+  brief: Read image format, dimensions, mode, and bounded EXIF fields from a host
+    image file.
+  capability_family: media
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: ''
+      required:
+      - file_path
+    consumes:
+    - type: SupportedImageFile
+      binding_fields: file_path
+      preconditions: PIL-supported valid image; EXIF arbitrary values are not typed
+        timestamps
+    produces:
+    - type: ImageMetadata
+      pointer: /format,/exif
+      constraints: EXIF type/time semantics not uniform
+    parameter_semantics:
+      file_path: host/tree path; normalize and enforce case roots/run directory; not
+        image internal path
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:344
+    executor_ref:
+      path: mfpro_jax/tools/media_time.py
+      line: 16
+      end_line: 30
+      signature: 'file_path: str'
+      source_sha256: 1e3317b36952422d8f96a3d9dac5828ea483d06f7167f8e4449720fb62f1865d
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.time.normalize
+  tool_name: normalize_timestamp
+  brief: Convert numeric timestamp values into normalized date-time forms.
+  capability_family: time
+  workflow_stage: normalize
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        value:
+          type: number
+          description: ''
+        format_hint:
+          type: string
+          description: ''
+          enum:
+          - auto
+          - unix
+          - unix_seconds
+          - unix_ms
+          - unix_milliseconds
+          - unix_us
+          - unix_microseconds
+          - unix_ns
+          - unix_nanoseconds
+          - filetime
+          - windows_filetime
+          - webkit
+          - apple
+          default: auto
+        utc_offset_minutes:
+          type: integer
+          description: ''
+          minimum: -1439
+          maximum: 1439
+          default: 0
+      required:
+      - value
+    consumes:
+    - type: NumericTimestamp
+      binding_fields: value
+      preconditions: finite non-bool number; epoch/unit/context established separately;
+        candidates not confidence-ranked
+    produces:
+    - type: NormalizedTimeCandidates
+      pointer: /candidates/*/{format,utc,local}
+      constraints: ambiguous alternatives; not automatic answer sufficiency
+    parameter_semantics:
+      value: ''
+      format_hint: ''
+      utc_offset_minutes: ''
+    evidence_level: REAL_SAMPLE_CONFIRMED
+    registry_ref: mfpro_jax/tool_registry.py:350
+    executor_ref:
+      path: mfpro_jax/tools/media_time.py
+      line: 67
+      end_line: 120
+      signature: 'value: float, format_hint: str=''auto'', utc_offset_minutes: int=0'
+      source_sha256: 1e3317b36952422d8f96a3d9dac5828ea483d06f7167f8e4449720fb62f1865d
+    unknowns:
+    - Actual runtime dependencies and future file format/availability are not measured
+      offline.
+- node_id: p0.registry.read_value
+  tool_name: read_windows_registry_value
+  brief: Read a caller-specified registry key path and registry value from an offline
+    Windows Registry hive; returns a decoded typed registry value. hive_path must
+    be an authorized host/tree hive path; export image members first.
+  capability_family: registry
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        hive_path:
+          type: string
+          description: Accessible local Windows Registry hive path.
+        key_path:
+          type: string
+          description: Hive-relative registry key path.
+        value_name:
+          type: string
+          description: Registry value name; empty string denotes the default value.
+      required:
+      - hive_path
+      - key_path
+      - value_name
+    consumes:
+    - type: WindowsRegistryHive
+      binding_fields: hive_path
+      preconditions: Authorized readable local file; actual format must be verified
+        by consumer
+    produces:
+    - type: RegistryValue
+      pointer: /result
+      constraints: Success branch only; observations are not a host file or automatic
+        input binding
+    parameter_semantics:
+      hive_path: Accessible local Windows Registry hive path.
+      key_path: Hive-relative registry key path.
+      value_name: Registry value name; empty string denotes the default value.
+    evidence_level: STAGE_A_FOCUSED_VALIDATION
+    registry_ref: mfpro_jax/tool_registry.py:_register_all
+    executor_ref:
+      path: mfpro_jax/tools/capability_admission.py
+      symbol: read_windows_registry_value
+    unknowns:
+    - Dedicated FIRST/PERSISTENT processing intentionally deferred; format and Source
+      identity remain runtime checks.
+- node_id: p0.ewf.parse_header
+  tool_name: parse_e01_header
+  brief: Parse an E01/EWF forensic image header (header/header2) into acquisition
+    metadata, device information and acquisition timestamps; requires an accessible
+    authorized EWF image host path. Accepts only host/tree paths; for image-index
+    members use indexed-member tools or export_indexed_file first.
+  capability_family: ewf
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: Authorized local E01/EWF forensic image path.
+      required:
+      - file_path
+    consumes:
+    - type: EWFImage
+      binding_fields: file_path
+      preconditions: Authorized readable local file; actual format must be verified
+        by consumer
+    produces:
+    - type: AcquisitionMetadata
+      pointer: /result
+      constraints: Success branch only; observations are not a host file or automatic
+        input binding
+    parameter_semantics:
+      file_path: Authorized local E01/EWF forensic image path.
+    evidence_level: STAGE_A_FOCUSED_VALIDATION
+    registry_ref: mfpro_jax/tool_registry.py:_register_all
+    executor_ref:
+      path: mfpro_jax/tools/capability_admission.py
+      symbol: parse_e01_header
+    unknowns:
+    - Dedicated FIRST/PERSISTENT processing intentionally deferred; format and Source
+      identity remain runtime checks.
+- node_id: p0.media.analyze_image
+  tool_name: analyze_image
+  brief: 'Analyze pixels and clearly visible content of one local image artifact:
+    visible text, objects and interface elements. This is visual observation, distinct
+    from read_image_metadata EXIF/format attributes; unsupported hidden facts must
+    not be inferred. image_path must be an authorized host/tree image path; export
+    image members first.'
+  capability_family: media
+  workflow_stage: inspect
+  evidence_types:
+  - '*'
+  ports:
+    input_schema:
+      type: object
+      properties:
+        image_path:
+          type: string
+          description: Authorized local PNG/JPEG/WEBP image path; maximum 10 MiB and
+            20 million pixels.
+        query:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional local visible-content instruction; null or omitted
+            uses a general low-inference description.
+      required:
+      - image_path
+    consumes:
+    - type: ImageArtifact
+      binding_fields: image_path
+      preconditions: Authorized readable local file; actual format must be verified
+        by consumer
+    produces:
+    - type: VisualContent
+      pointer: /result
+      constraints: Success branch only; observations are not a host file or automatic
+        input binding
+    parameter_semantics:
+      image_path: Authorized local PNG/JPEG/WEBP image path; maximum 10 MiB and 20
+        million pixels.
+      query: Optional local visible-content instruction; null or omitted uses a general
+        low-inference description.
+    evidence_level: STAGE_A_FOCUSED_VALIDATION
+    registry_ref: mfpro_jax/tool_registry.py:_register_all
+    executor_ref:
+      path: mfpro_jax/tools/vision.py
+      symbol: analyze_image
+    unknowns:
+    - Dedicated FIRST/PERSISTENT processing intentionally deferred; format and Source
+      identity remain runtime checks.
+can_feed:
+- edge_id: typed.13e28b73462b6e
+  producer: list_partitions
+  consumer: select_partition
+  evidence_type: PartitionRef
+  binding_fields:
+    partition_id: item.partition_id
+    active_source: producer active Source
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - same active image; returned partition still present
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /partitions/*/partition_id
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 98
+    end_line: 117
+    signature: 'ctx: RuntimeContext'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/source_access.py
+    line: 120
+    end_line: 140
+    signature: 'ctx: RuntimeContext, partition_id: str'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7a39e4b66155ba5a026e49792e7f12c0da9b62bef781bf4ca664192e3e5e914a
+  rationale: Exact enumerated partition ID; no reverse execution implication.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.6f3f3402e8d408
+  producer: query_file_index
+  consumer: get_indexed_file_metadata
+  evidence_type: IndexedMemberRef
+  binding_fields:
+    source_id: same item.source_id
+    file_id: same item.file_id
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - nonempty source_id/file_id from same record
+  - file branch for readers/export; metadata also supports directory
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/index.py
+    line: 217
+    end_line: 260
+    signature: 'ctx: RuntimeContext, path_pattern: str=''*'', name_pattern: str=''*'',
+      extension: str='''', file_type: str='''', min_size: int=0, max_size: int=-1,
+      is_deleted: bool | None=None, time_field: str='''', time_after: str='''', time_before:
+      str='''', max_results: int=200'
+    source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+  - path: mfpro_jax/tools/source_access.py
+    line: 366
+    end_line: 386
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a3c4e47ec7cb375bf29046889339b9703c20dfe256ba45433ebbf3cafccd6371
+  rationale: Complete scoped member identity; consumers use existing entry lookup
+    and partition restoration.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.c94e2b8212aaff
+  producer: query_file_index
+  consumer: export_indexed_file
+  evidence_type: IndexedMemberRef
+  binding_fields:
+    source_id: same item.source_id
+    file_id: same item.file_id
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - nonempty source_id/file_id from same record
+  - file branch for readers/export; metadata also supports directory
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/index.py
+    line: 217
+    end_line: 260
+    signature: 'ctx: RuntimeContext, path_pattern: str=''*'', name_pattern: str=''*'',
+      extension: str='''', file_type: str='''', min_size: int=0, max_size: int=-1,
+      is_deleted: bool | None=None, time_field: str='''', time_after: str='''', time_before:
+      str='''', max_results: int=200'
+    source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: ed4d3b8b83e6d3796549bcccad51b67a5b45f88f4c40c06bb9ca4f3bba395787
+  rationale: Complete scoped member identity; consumers use existing entry lookup
+    and partition restoration.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.73e8dc7b5c6c74
+  producer: query_file_index
+  consumer: read_indexed_text
+  evidence_type: IndexedMemberRef
+  binding_fields:
+    source_id: same item.source_id
+    file_id: same item.file_id
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - nonempty source_id/file_id from same record
+  - file branch for readers/export; metadata also supports directory
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/index.py
+    line: 217
+    end_line: 260
+    signature: 'ctx: RuntimeContext, path_pattern: str=''*'', name_pattern: str=''*'',
+      extension: str='''', file_type: str='''', min_size: int=0, max_size: int=-1,
+      is_deleted: bool | None=None, time_field: str='''', time_after: str='''', time_before:
+      str='''', max_results: int=200'
+    source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+  - path: mfpro_jax/tools/source_access.py
+    line: 537
+    end_line: 544
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, offset: int=0,
+      max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a4699b8bded313b89b0b56bc1152155d405dffd1957b13d30131f9a1984eda45
+  rationale: Complete scoped member identity; consumers use existing entry lookup
+    and partition restoration.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.28b0dd44fa951b
+  producer: query_file_index
+  consumer: read_indexed_binary_range
+  evidence_type: IndexedMemberRef
+  binding_fields:
+    source_id: same item.source_id
+    file_id: same item.file_id
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - nonempty source_id/file_id from same record
+  - file branch for readers/export; metadata also supports directory
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/index.py
+    line: 217
+    end_line: 260
+    signature: 'ctx: RuntimeContext, path_pattern: str=''*'', name_pattern: str=''*'',
+      extension: str='''', file_type: str='''', min_size: int=0, max_size: int=-1,
+      is_deleted: bool | None=None, time_field: str='''', time_after: str='''', time_before:
+      str='''', max_results: int=200'
+    source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+  - path: mfpro_jax/tools/source_access.py
+    line: 547
+    end_line: 554
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, offset: int=0,
+      length: int=2048'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d100a3e85518ea5707e602d4ef1b530dbac8d1912631a0acbe698db04b74f03a
+  rationale: Complete scoped member identity; consumers use existing entry lookup
+    and partition restoration.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.2a45304820be21
+  producer: query_file_index
+  consumer: search_indexed_file
+  evidence_type: IndexedMemberRef
+  binding_fields:
+    source_id: same item.source_id
+    file_id: same item.file_id
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - nonempty source_id/file_id from same record
+  - file branch for readers/export; metadata also supports directory
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/index.py
+    line: 217
+    end_line: 260
+    signature: 'ctx: RuntimeContext, path_pattern: str=''*'', name_pattern: str=''*'',
+      extension: str='''', file_type: str='''', min_size: int=0, max_size: int=-1,
+      is_deleted: bool | None=None, time_field: str='''', time_after: str='''', time_before:
+      str='''', max_results: int=200'
+    source_sha256: 4125f6b35836424d73093809dd399fbb5a2ef7f8b10a31c37b0ec6065d241835
+  - path: mfpro_jax/tools/source_access.py
+    line: 473
+    end_line: 534
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, pattern: str, regex:
+      bool=False, context_chars: int=80, max_results: int=100'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: fe36561d95c0ac8c10669b7a4026afc562d2cdb6ba6f03057c42ea10c734bde6
+  rationale: Complete scoped member identity; consumers use existing entry lookup
+    and partition restoration.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.56481d2b79a0b0
+  producer: export_file
+  consumer: read_text
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.9755a0ea6d6c3a
+  producer: export_file
+  consumer: read_binary_range
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.3ae82fc5308571
+  producer: export_file
+  consumer: compute_hash
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.c388b36ec23f7f
+  producer: export_file
+  consumer: identify_file_type
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.82f7eb22ebf7e8
+  producer: export_file
+  consumer: detect_text_encoding
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.881d2779a12658
+  producer: export_file
+  consumer: extract_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.8e1af6a40d2c44
+  producer: export_file
+  consumer: search_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.79f6feaba63d3e
+  producer: export_file
+  consumer: search_file
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.2ed5307bf1b8e5
+  producer: export_indexed_file
+  consumer: read_text
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.de7c90c58e471c
+  producer: export_indexed_file
+  consumer: read_binary_range
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.e2c99bd3e83600
+  producer: export_indexed_file
+  consumer: compute_hash
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.a8a32d314e7b5b
+  producer: export_indexed_file
+  consumer: identify_file_type
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.3cea6b65caf4df
+  producer: export_indexed_file
+  consumer: detect_text_encoding
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.a52c9cd72fa6a4
+  producer: export_indexed_file
+  consumer: extract_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.161c4d5adf3f18
+  producer: export_indexed_file
+  consumer: search_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.f13fcc571cde33
+  producer: export_indexed_file
+  consumer: search_file
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 389
+    end_line: 416
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, output_name: str='''',
+      max_bytes: int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.196bc1cd78baa6
+  producer: extract_image_file
+  consumer: read_text
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.caf600555ebfbf
+  producer: extract_image_file
+  consumer: read_binary_range
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.2e2e79c7ac25b9
+  producer: extract_image_file
+  consumer: compute_hash
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.64e1f6c816a480
+  producer: extract_image_file
+  consumer: identify_file_type
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.e2a855552dad40
+  producer: extract_image_file
+  consumer: detect_text_encoding
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.0e76572567ca67
+  producer: extract_image_file
+  consumer: extract_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.90bf568f86295c
+  producer: extract_image_file
+  consumer: search_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.9fbfa207c6f6ff
+  producer: extract_image_file
+  consumer: search_file
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.0fe6c1cd8ae75a
+  producer: extract_archive_member
+  consumer: read_text
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.73fb11f6e36cf3
+  producer: extract_archive_member
+  consumer: read_binary_range
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.18ecb489486980
+  producer: extract_archive_member
+  consumer: compute_hash
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.314656815a1e83
+  producer: extract_archive_member
+  consumer: identify_file_type
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.4cacb013adf82c
+  producer: extract_archive_member
+  consumer: detect_text_encoding
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.4dc7e154bac23b
+  producer: extract_archive_member
+  consumer: extract_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.5b1a0ce339d83a
+  producer: extract_archive_member
+  consumer: search_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.6662670c640429
+  producer: extract_archive_member
+  consumer: search_file
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 140
+    end_line: 187
+    signature: 'archive_path: str, member: str, output_dir: str, max_expanded_bytes:
+      int=1073741824'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.9424bf1fd851fe
+  producer: sqlite_export_query
+  consumer: read_text
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.0b2fb2a91455ec
+  producer: sqlite_export_query
+  consumer: read_binary_range
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.27290ac37974c6
+  producer: sqlite_export_query
+  consumer: compute_hash
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.b5df52bfa81188
+  producer: sqlite_export_query
+  consumer: identify_file_type
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.4004043c704431
+  producer: sqlite_export_query
+  consumer: detect_text_encoding
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.b9aa2c3893de4d
+  producer: sqlite_export_query
+  consumer: extract_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.0c8181904c6979
+  producer: sqlite_export_query
+  consumer: search_file_strings
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.f9b82aaac09a2b
+  producer: sqlite_export_query
+  consumer: search_file
+  evidence_type: HostRegularFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - materialized persistent regular file exists/readable
+  - not temporary indexed export; no parser-format promise
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Real successful materialization supplies host file; generic byte/encoding
+    operations accept format-agnostic files.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.ee9c87ddaa1194
+  producer: sqlite_export_query
+  consumer: inspect_json
+  evidence_type: JSONFile
+  binding_fields:
+    file_path: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - within structured byte bound; producer-created finite UTF8 JSON
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 679
+    end_line: 690
+    signature: 'db_path: str, query: str, output_path: str, max_rows: int=10000'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/structured.py
+    line: 795
+    end_line: 819
+    signature: 'file_path: str'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 752a74c57036558d10869083bc49784d9358cc308c8d1d31b69e6ae5662cf988
+  rationale: Executor writes JSON regardless of chosen suffix. No scientific content
+    generation or schema guessing.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.6acc9852678f08
+  producer: list_directory
+  consumer: read_text
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.2eb882a38c6703
+  producer: list_directory
+  consumer: read_binary_range
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.d2687489161a85
+  producer: list_directory
+  consumer: compute_hash
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.b2473ed0d5285d
+  producer: list_directory
+  consumer: identify_file_type
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.04fb01c0c14c88
+  producer: list_directory
+  consumer: detect_text_encoding
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.2e8c1e9cbbde98
+  producer: list_directory
+  consumer: extract_file_strings
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.a42364f8371ccc
+  producer: list_directory
+  consumer: search_file_strings
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.efa659c2e23eec
+  producer: list_directory
+  consumer: search_file
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.6ef3d39c289283
+  producer: list_directory
+  consumer: export_file
+  evidence_type: TreeRegularFileLocator
+  binding_fields:
+    file_path: resolve(retained active_tree_root / item.path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was tree branch
+  - item.kind=file; not symlink
+  - resolve remains inside original active Source root
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{path,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/source_access.py
+    line: 617
+    end_line: 633
+    signature: 'ctx: RuntimeContext, file_path: str, output_name: str='''', max_bytes:
+      int=1073741824'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7fa6f91a999a395355e9debfcd47da7076014cbf993194dca8f7d71b14febfd3
+  rationale: Deterministic Source-root resolution is implemented by Registry for relative
+    file_path; image branches excluded.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.af29df0bbae43c
+  producer: list_directory
+  consumer: extract_image_file
+  evidence_type: ImageFileInode
+  binding_fields:
+    inode: item.inode
+    active_source_partition: retained producer scope
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - producer was image branch
+  - item.kind=file; observed inode nonempty
+  - active Source/Partition still matches
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /entries/*/{inode,kind}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 197
+    end_line: 241
+    signature: 'ctx: RuntimeContext, path: str=''.'', inode: str='''', recursive:
+      bool=False'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/source_access.py
+    line: 287
+    end_line: 302
+    signature: 'ctx: RuntimeContext, inode: str, output_name: str='''''
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0f731df2923351f5c87f7c34c672bed5af11fd78d657e82093d1bbd30772fcd0
+  rationale: Image inode is not an indexed file_id or a host path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.8d25b61b371baa
+  producer: sqlite_schema
+  consumer: sqlite_schema_detail
+  evidence_type: BoundDatabaseObject
+  binding_fields:
+    db_path: retained producer normalized db_path
+    object_name: same item.name
+    object_type: same item.type
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - same immutable DB snapshot
+  - actual returned object; type table/view
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /objects/*/{name,type}
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/structured.py
+    line: 321
+    end_line: 341
+    signature: 'db_path: str'
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - path: mfpro_jax/tools/structured.py
+    line: 344
+    end_line: 385
+    signature: 'db_path: str, object_name: str, object_type: str='''''
+    source_sha256: e4371337ba4ea706e3a059f1954dbd3d71c41668aad74b64c181afadfcfe1ec7
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 2b212088a1dab63b8bafc8a1dc53ac49f21a6d92821e686be68b944450554723
+  rationale: Complete DB identity comes from invocation provenance; object identity
+    from one returned record.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.b67085f23da695
+  producer: expand_archive
+  consumer: search_files_content
+  evidence_type: HostDirectory
+  binding_fields:
+    root: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - directory exists; no rebind of Source
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 291
+    end_line: 298
+    signature: 'archive_path: str, output_dir: str, max_members: int=100000, max_expanded_bytes:
+      int=10737418240'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8d11b5640b190a8ce9e63b3b98395074658b3389b2d378edb4faa470f9bb0aa2
+  rationale: Consumer accepts a host directory under run root, unlike build_file_index.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.5e281b2d4fb40c
+  producer: expand_nested_archives
+  consumer: search_files_content
+  evidence_type: HostDirectory
+  binding_fields:
+    root: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - directory exists; no rebind of Source
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 340
+    end_line: 371
+    signature: 'root: str, output_root: str, max_depth: int=2, max_members: int=100000,
+      max_expanded_bytes: int=10737418240'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8d11b5640b190a8ce9e63b3b98395074658b3389b2d378edb4faa470f9bb0aa2
+  rationale: Consumer accepts a host directory under run root, unlike build_file_index.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.9c1029e40020bb
+  producer: expand_archive
+  consumer: expand_nested_archives
+  evidence_type: HostDirectory
+  binding_fields:
+    root: producer.output_path
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - bounded directory recursion; no automatic Source rebind
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /output_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/archive.py
+    line: 291
+    end_line: 298
+    signature: 'archive_path: str, output_dir: str, max_members: int=100000, max_expanded_bytes:
+      int=10737418240'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - path: mfpro_jax/tools/archive.py
+    line: 340
+    end_line: 371
+    signature: 'root: str, output_root: str, max_depth: int=2, max_members: int=100000,
+      max_expanded_bytes: int=10737418240'
+    source_sha256: 77eb6a070624963c3b8f342f3a91f8a5769c285b2fe353b407241fb9986258b9
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a8640abc022eb4fd88115e28a40a50feb60e56199e400202d5d0365a29fc58e2
+  rationale: Output directory is an exact root input, not assumed to be a file.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.b6ed78340a27a8
+  producer: search_files_content
+  consumer: read_text
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.c3dd6c27849fae
+  producer: search_files_content
+  consumer: read_binary_range
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.3a634e0d90c4e8
+  producer: search_files_content
+  consumer: compute_hash
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 145
+    end_line: 159
+    signature: 'file_path: str, algorithms: list[str] | None=None'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: a350a2ac6d66eb31c3c782c3df916dc63a2a92e8a96b45c7a3d97973d967479b
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.223b1399dd428a
+  producer: search_files_content
+  consumer: identify_file_type
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 162
+    end_line: 180
+    signature: 'file_path: str'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 8fd4a40670bb6166d06e44f82eaa5b6795dd55e0efd1407795ede1f0f54a1c54
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.3fe52407e9221d
+  producer: search_files_content
+  consumer: detect_text_encoding
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7166f251f4b08f3d7fdbd8a4d0711e70f44d11f22346e6950caf548706d521bd
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.ec603bfc4ba762
+  producer: search_files_content
+  consumer: extract_file_strings
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 0db623999721b787fb48cd31b2ad7826f37445df90f44119ec66c33db5c7e203
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.50a47b8b3d8fb7
+  producer: search_files_content
+  consumer: search_file_strings
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d44f6449a518139874dd15fbd267855cab9495ff6d7c48e94059c35d0a7172c7
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.fa7ce47f58e2cf
+  producer: search_files_content
+  consumer: search_file
+  evidence_type: LocatedHostMember
+  binding_fields:
+    file_path: resolve(retained normalized root / item.relative_path)
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - actual returned matched file only
+  - same root; resolved path inside original root
+  - retain input root; reject symlink/domain escape
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/relative_path
+  required_external_arguments:
+  - pattern
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 469
+    end_line: 551
+    signature: 'root: str, pattern: str, regex: bool=False, extensions: list[str]
+      | None=None, max_file_size: int=10485760, max_results: int=200'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 19fe807260e73f90c69a02d7701af4c9add51464c1f711be6022189982f7296c
+  rationale: Successful recursive hit carries a relative regular-file locator tied
+    to known root, not an arbitrary text path.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.5ba381020433fc
+  producer: search_indexed_file
+  consumer: read_indexed_binary_range
+  evidence_type: LocatedIndexedByteMatch
+  binding_fields:
+    source_id: retained input source_id
+    file_id: retained input file_id
+    offset: item.byte_offset
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - byte_offset is non-null nonnegative integer
+  - same member content/version; bounded length
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/byte_offset
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/source_access.py
+    line: 473
+    end_line: 534
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, pattern: str, regex:
+      bool=False, context_chars: int=80, max_results: int=100'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - path: mfpro_jax/tools/source_access.py
+    line: 547
+    end_line: 554
+    signature: 'ctx: RuntimeContext, source_id: str, file_id: str, offset: int=0,
+      length: int=2048'
+    source_sha256: e365a65c318086d190565891907ecdc6d989134b06c4a5101d687e1e0c3f0f37
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: d100a3e85518ea5707e602d4ef1b530dbac8d1912631a0acbe698db04b74f03a
+  rationale: Nullable-offset success subport has a deterministic adapter; no character-to-byte
+    guessing.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.42c416ea5e4de7
+  producer: search_file
+  consumer: read_binary_range
+  evidence_type: LocatedHostByteMatch
+  binding_fields:
+    file_path: retained normalized input file_path
+    offset: item.byte_offset
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - byte_offset is non-null nonnegative integer
+  - same immutable file; bounded length
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/byte_offset
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 455
+    end_line: 466
+    signature: 'file_path: str, pattern: str, regex: bool=False, context_chars: int=80,
+      max_results: int=100'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Exact byte location plus retained same-file identity; not any number-to-offset
+    conversion.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: true
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.f78bc4225a7063
+  producer: search_file_strings
+  consumer: read_binary_range
+  evidence_type: LocatedHostByteMatch
+  binding_fields:
+    file_path: retained normalized input file_path
+    offset: item.byte_offset
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - byte_offset is non-null nonnegative integer
+  - same immutable file; bounded length
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/byte_offset
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 410
+    end_line: 452
+    signature: 'file_path: str, pattern: str, regex: bool=False, min_length: int=4,
+      max_results: int=200, max_bytes: int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Exact byte location plus retained same-file identity; not any number-to-offset
+    conversion.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.634eafdbceb2ac
+  producer: extract_file_strings
+  consumer: read_binary_range
+  evidence_type: LocatedHostByteMatch
+  binding_fields:
+    file_path: retained normalized input file_path
+    offset: item.byte_offset
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - byte_offset is non-null nonnegative integer
+  - same immutable file; bounded length
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /results/*/byte_offset
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 375
+    end_line: 407
+    signature: 'file_path: str, min_length: int=4, max_results: int=500, max_bytes:
+      int=268435456'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 125
+    end_line: 142
+    signature: 'file_path: str, offset: int=0, length: int=2048'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 52d3886974bfbd1831890c17747aa1e20be0dc73e6acde313a77ab34410284cf
+  rationale: Exact byte location plus retained same-file identity; not any number-to-offset
+    conversion.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed
+- edge_id: typed.4332ec36c412bd
+  producer: detect_text_encoding
+  consumer: read_text
+  evidence_type: DetectedEncoding
+  binding_fields:
+    file_path: retained input file_path
+    encoding: producer.encoding
+  preconditions:
+  - successful nonempty branch
+  - same run; retain producer input/context provenance
+  - no scope/partition substitution
+  - consumer input/output sandbox and resource checks still apply
+  - sampled_bytes>0; encoding is not unknown and is an emitted codec
+  - same file content
+  relation: can_feed
+  status: CONFIRMED
+  source_pointer: /encoding
+  required_external_arguments: []
+  proof:
+  - path: mfpro_jax/tools/readers.py
+    line: 199
+    end_line: 204
+    signature: 'file_path: str, sample_bytes: int=65536'
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - path: mfpro_jax/tools/readers.py
+    line: 101
+    end_line: 122
+    signature: 'file_path: str, offset: int=0, max_bytes: int=16000, encoding: str=''auto'''
+    source_sha256: 7547a60652ff875bbf48ef54d07c384f301de898d5cbcf8ebdd6492b081f3c9c
+  - reference: private-validation-proof-not-distributed
+    record_identity_sha256: 7b265435926383baa7421e336ca5f7d35f489bf5e9a5b807bda99cc29354b537
+  rationale: Observed codec is a semantic input port; empty/unknown samples excluded
+    deterministically.
+  confidence: CONTRACT_CONFIRMED
+  cross_family: false
+  runtime_meaning: potential compatible typed port on the validated success branch;
+    not autoexecute, not claim all calls succeed

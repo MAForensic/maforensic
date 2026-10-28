@@ -1,0 +1,21 @@
+processor_mode: baseline
+agent:
+  model: ''
+  vision_model: ''
+  max_tokens: 8192
+  max_iterations: 40
+capsule_context:
+  enabled: true
+  mode: prompt_context
+  retrieval_version: typed-can-feed-v1
+  max_seed_tools: 8
+  max_nodes: 16
+  max_edges: 16
+  max_context_chars: 6000
+  annotate_trace: true
+task_evidence_graph:
+  mode: active
+  presentation: evidence_cards_v2_1
+  max_evidence_view_chars: 10000
+tool_call_repair:
+  mode: 'off'
