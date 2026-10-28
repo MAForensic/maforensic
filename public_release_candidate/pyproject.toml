@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "mfpro-jax"
 version = "0.1.0"
-description = "44-tool typed evidence agent source candidate"
+description = "evidence agent source candidate"
 requires-python = ">=3.11"
 dependencies = [
     "httpx[socks]>=0.28.1",
