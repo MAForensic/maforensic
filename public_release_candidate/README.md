@@ -1,23 +1,4 @@
-# 44-tool typed evidence agent — source candidate
-
-This independent source candidate contains 44 admitted tool definitions and implementations, 44 typed graph nodes and 74 directed confirmed `can_feed` edges. It is prepared for owner review and has not been published. License pending owner review; no open-source license is granted by this candidate.
+# evidence agent — source candidate
 
 Requires Python 3.11 or newer. Dependency declarations are in pyproject.toml. In your own approved environment, install the declared dependencies and optionally this package. No dependencies, repositories or images were downloaded during export. Offline validation used existing Python 3.12 packages (httpx 0.27.2, OpenAI SDK 1.61.1, Pillow 11.1.0, PyYAML 6.0.2), some below the declared dependency minimums. Installation, wheel building and testing with the declared versions have not been performed. Optional host utilities used by some tools include Sleuth Kit commands (`mmls`, `fsstat`, `fls`, `icat`), `file`, `strings`, and archive readers; inspect each ToolDefinition.dependencies. Missing optional dependencies do not mean the tool algorithm has been exercised.
 
-From this directory, `python -B -m mfpro_jax.main check` performs an offline import/inventory check. `python -B -m mfpro_jax.main --help` shows the CLI. `python -B tests/offline_smoke.py` runs synthetic-only acceptance tests with external networking blocked. Neither requires credentials or evidence. Tests never run a real forensic executor. They validate registration, typed direction retrieval and the basic Agent loop using a Fake client and an injected synthetic executor.
-
-Only baseline output mode is distributed. Advanced output optimizers, external processor plugins and their development or replay interfaces are absent. Retained infrastructure stores raw results locally, maintains bounded plain-text views and supports explicit result recall; it does not implement specialized projection strategies. TEG and Evidence Cards V2.1 are independent runtime components. The supplied example explicitly enables active TEG/Cards; bare-library defaults may differ. Repair is off (`mode: "off"`, quoted to avoid YAML boolean coercion).
-
-The registry/E01 parsers are current admitted local implementations. Their origin and redistribution authorization still require owner confirmation before publication; no external generator or archive is distributed. Vision uses the operator-configured Provider client. The source case model notes migration from an earlier project; its attribution/ownership must also be confirmed. No dependency package or vendor tree is bundled. See NOTICE.md.
-
-To use your own authorized data, write a case YAML with a `sources` list whose entries have `id`, `label`, `type`, `access_mode`, and `path` (relative to that YAML). Write a task in a separate UTF-8 file. This candidate does not include any evidence, benchmark questions, answers, graders or run histories. Set MODEL_API_KEY, MODEL_BASE_URL (HTTPS), MODEL_NAME, and optionally MODEL_VISION_MODEL in your shell; .env.example is documentation only and is not loaded. Then explicitly opt in:
-
-```
-python -B -m mfpro_jax.main run --allow-provider --config config.example.yaml --case your_case.yaml --source-id src-your-source --task-file your_task.txt --run-dir runs/new-task
-```
-
-This command can send task text and tool observations to your configured model; Vision sends image content when invoked. It is not a no-egress sandbox. Review your data and Provider agreement before opting in. Output directories and traces contain operator data and must stay private. No batch grading, private run resume or automatic archive preparation is provided. Configure valid source geometry and optional utilities yourself. Tools retain their path authorization/read-only controls; exporting archive members creates only the intended local outputs.
-
-Private validation evidence is not distributed with graph metadata. Code proof references and edge IDs/bindings are retained; undistributable proof entries are replaced by opaque metadata-record identities. `CONFIRMED` records private admission status and is not a claim that the public smoke test establishes forensic semantics. Conservative output metadata promises raw text only; prior sample-derived schemas and examples are omitted.
-
-No real Provider request, evidence parsing or full investigation benchmark was run for this candidate. No benchmark score, automatic capability growth or successful investigation is claimed. All upstream ownership, generated-code terms and the project license require review before a later publication authorization.
